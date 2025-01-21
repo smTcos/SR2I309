@@ -1,0 +1,1 @@
+./create_vm_debian.sh 103 192.168.100.200 test test
