@@ -5,6 +5,7 @@ import os
 app = Flask(__name__)
 
 # Fichiers pour la whitelist et les tokens
+# Liste des utilisateurs autorises, surement a supprimer dans de prochaines versions, en faisant une gestion propre des groupes
 WHITELIST = "/mnt/private/whitelist_tlp_red.txt"
 TOKENS_DIR = "/mnt/private/tokens"
 TLP_RED_PATH = "/mnt/private/TLP_RED"
@@ -34,16 +35,16 @@ def access_file():
 
     #Verification de la whitelist
     if not user_in_whitelist(user):
-        return jsonify({"status": "error", "message": "Utilisateur non autorisé"}), 403
+        return jsonify({"status": "error", "message": "Utilisateur non autorise"}), 403
 
     # Authentification SFTP
     if not authenticate_sftp(user, password):
-        return jsonify({"status": "error", "message": "Échec de l'authentification SFTP"}), 401
+        return jsonify({"status": "error", "message": "Echec de l'authentification SFTP"}), 401
 
 
 
     if not token:
-        return jsonify({"status": "error", "message": "Jeton requis pour accéder à ce fichier"}), 403
+        return jsonify({"status": "error", "message": "Jeton requis pour accéder a ce fichier"}), 403
 
     # Validation du jeton
     valid, message = validate_user_token(user, TLP_RED_PATH+file_path, token)
@@ -79,11 +80,11 @@ def tlp_red_tree():
 
     #Verification de la whitelist
     if not user_in_whitelist(user):
-        return jsonify({"status": "error", "message": "Utilisateur non autorisé"}), 403
+        return jsonify({"status": "error", "message": "Utilisateur non autorise"}), 403
 
     # Authentification SFTP
     if not authenticate_sftp(user, password):
-        return jsonify({"status": "error", "message": "Échec de l'authentification SFTP"}), 401
+        return jsonify({"status": "error", "message": "Echec de l'authentification SFTP"}), 401
 
     # Parcourir larborescence
     file_tree = []
@@ -107,6 +108,8 @@ def authenticate_sftp(user, password):
 
     try:
         # Connexion au serveur SFTP
+        # Dans notre cas le serveur SFTP est un service different de celui de TLP:RED
+        # En effet on ecoute sur le 2223 et on chroot les users qui se connectent dans /mnt/private/TLP_RED/data
         transport = paramiko.Transport(('127.0.0.1', 2223))  # Adapter si le serveur SFTP est ailleurs
         transport.connect(username=user, password=password)
         sftp = paramiko.SFTPClient.from_transport(transport)
@@ -124,7 +127,7 @@ def authenticate_sftp(user, password):
 def validate_user_token(user, file_path, provided_token):
     token_file = os.path.join(TOKENS_DIR, f"{user}_token.txt")
     if not os.path.exists(token_file):
-        return False, "Aucun jeton trouvé pour l'utilisateur"
+        return False, "Aucun jeton trouve pour l'utilisateur"
 
     with open(token_file, 'r') as f:
         stored_data = f.read().strip().split(":")
@@ -134,6 +137,7 @@ def validate_user_token(user, file_path, provided_token):
         return False, "Jeton invalide pour cet utilisateur ou fichier"
 
     # Verifier la validite du jeton
+    # A CHANGER EN PROD avec une gestion des admins des SI
     secret_key = "my_super_secret_key"
     expected_token = subprocess.getoutput(f"echo -n '{user}:{file_path}:{timestamp}:{secret_key}' | sha256sum | awk '{{print $1}}'")
     if expected_token != provided_token:
